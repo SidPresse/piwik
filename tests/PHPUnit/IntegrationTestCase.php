@@ -161,6 +161,7 @@ abstract class IntegrationTestCase extends PHPUnit_Framework_TestCase
         'UsersManager',
         'SitesManager',
         'ExampleUI',
+	    'Overlay',
         'Live',
         'SEO',
         'ExampleAPI',

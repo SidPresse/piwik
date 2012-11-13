@@ -311,6 +311,17 @@ api_service_url = http://api.piwik.org
 ; eg. $period=range&date=previous10 becomes $period=day&date=previous10. Use this setting to override the $period value.
 graphs_default_period_to_plot_when_period_range = day
 
+; The Overlay plugin shows the Top X following pages, Top X downloads and Top X outlinks which followed
+; a view of the current page. The value X can be set here.
+overlay_following_pages_limit = 300
+
+; With this option, you can disable the framed mode of the Overlay plugin. If set to 1, the Page Overlay session
+; will be started in a new tab instead of the iframe.
+overlay_disable_framed_mode = 0
+
+; If this option is set, the links in the pages reports will not be opened in a new tab but will launch Page Overlay instead.
+overlay_launch_from_pages_report = 0
+
 [Tracker]
 ; Piwik uses first party cookies by default. If set to 1,
 ; the visit ID cookie will be set on the Piwik server domain as well

@@ -4,7 +4,7 @@
  * This utility preprocesses both the URLs in the document and
  * from the Piwik logs in order to make matching possible.
  */
-var Piwik_Insight_UrlNormalizer = (function() {
+var Piwik_Overlay_UrlNormalizer = (function() {
 	
 	/** Base href of the current document */
 	var baseHref = false;
@@ -14,6 +14,9 @@ var Piwik_Insight_UrlNormalizer = (function() {
 	
 	/** The current domain */
 	var currentDomain;
+	
+	/** Regular expressions for parameters to be excluded when matching links on the page */
+	var excludedParamsRegEx = [];
 	
 	/**
 	 * Basic normalizations for domain names
@@ -76,12 +79,16 @@ var Piwik_Insight_UrlNormalizer = (function() {
 			}
 		},
 		
-		/** Explicitly set domain (for testing) */
+		/**
+		 * Explicitly set domain (for testing)
+		 */
 		setCurrentDomain: function(pCurrentDomain) {
 			currentDomain = removeWww(pCurrentDomain);
 		},
 		
-		/** Explicitly set current url (for testing) */
+		/**
+		 * Explicitly set current url (for testing)
+		 */
 		setCurrentUrl: function(url) {
 			var index = url.lastIndexOf('/');
 			if (index != url.length - 1) {
@@ -92,12 +99,25 @@ var Piwik_Insight_UrlNormalizer = (function() {
 			currentFolder = normalizeDomain(currentFolder)[0];
 		},
 		
-		/** Explicitly set base href (for testing) */
+		/**
+		 * Explicitly set base href (for testing)
+		 */
 		setBaseHref: function(pBaseHref) {
 			if (!pBaseHref) {
 				baseHref = false;
 			} else {
 				baseHref = normalizeDomain(pBaseHref)[0];
+			}
+		},
+
+		/**
+		 * Set the parameters to be excluded when matching links on the page
+		 */
+		setExcludedParameters: function(pExcludedParams) {
+			excludedParamsRegEx = [];
+			for (var i = 0; i < pExcludedParams.length; i++) {
+				var paramString = pExcludedParams[i];
+				excludedParamsRegEx.push(new RegExp('&' + paramString + '=([^&#]*)', 'ig'));
 			}
 		},
 
@@ -110,7 +130,7 @@ var Piwik_Insight_UrlNormalizer = (function() {
 		
 		/**
 		 * Normalize URL
-		 * Can be an absolute or a reltive URL
+		 * Can be an absolute or a relative URL
 		 */
 		normalize: function(url) {
 			if (!url) {
@@ -142,33 +162,34 @@ var Piwik_Insight_UrlNormalizer = (function() {
 				}
 			}
 			
-			// remove #...
-			var pos;
-			if ((pos = url.indexOf('#')) != -1) {
-				url = url.substring(0, pos);
-			}
-			
 			// replace multiple / with a single /
 			url = url.replace(/\/\/+/g, '/');
 			
 			// handle ./ and ../
 			var parts = url.split('/');
-			var url = [];
+			var urlArr = [];
 			for (var i = 0; i < parts.length; i++) {
 				if (parts[i] == '.') {
-					continue;
+					// ignore
 				}
 				else if (parts[i] == '..') {
-					url.pop();
+					urlArr.pop();
 				}
 				else {
-					url.push(parts[i]);
+					urlArr.push(parts[i]);
 				}
 			}
-			url = url.join('/');
+			url = urlArr.join('/');
 			
-			// TODO: remove ignored paramters
-			// TODO: handle order of parameters (?)
+			// remove ignored parameters
+			url = url.replace(/\?/, '?&');
+			for (i = 0; i < excludedParamsRegEx.length; i++) {
+				var regEx = excludedParamsRegEx[i];
+				url = url.replace(regEx, '');
+			}
+			url = url.replace(/\?&/, '?');
+			url = url.replace(/\?#/, '#');
+			url = url.replace(/\?$/, '');
 			
 			return url;
 		}
@@ -176,84 +197,3 @@ var Piwik_Insight_UrlNormalizer = (function() {
 	};
 	
 })();
-
-
-/* TESTS FOR DOMAIN NORMALIZER *
-
-(function() {
-	
-	var success = true;
-	
-	function test(testCases) {
-		for (var i = 0; i < testCases.length; i++) {
-			var observed = Piwik_Insight_UrlNormalizer.normalize(testCases[i][0]);
-			var expected = testCases[i][1];
-			if (observed != expected) {
-				alert("TEST FAIL!\nOriginal: " + testCases[i][0] +
-						"\nObserved: " + observed + "\nExpected: " + expected);
-				success = false;
-			}
-		}
-	}
-	
-	
-	Piwik_Insight_UrlNormalizer.initialize();
-	
-	Piwik_Insight_UrlNormalizer.setBaseHref(false);
-	
-	Piwik_Insight_UrlNormalizer.setCurrentDomain('example.com');
-	Piwik_Insight_UrlNormalizer.setCurrentUrl('https://www.example.com/current/test.html?asdfasdf');
-	
-	test([
-		[
-			'relative/path/',
-			'example.com/current/relative/path/'
-		], [
-			'http://www.example2.com/path/foo.html',
-			'example2.com/path/foo.html'
-		]
-	]);
-	
-	
-	Piwik_Insight_UrlNormalizer.setCurrentDomain('www.example3.com');
-	Piwik_Insight_UrlNormalizer.setCurrentUrl('http://example3.com/current/folder/');
-	
-	test([[
-		'relative.html',
-		'example3.com/current/folder/relative.html'
-	]]);
-	
-	
-	Piwik_Insight_UrlNormalizer.setBaseHref('http://example.com/base/');
-	
-	test([
-		[
-			'http://www.example2.com/my/test/path.html?id=2#MyAnchor',
-			'example2.com/my/test/path.html?id=2'
-		], [
-			'/my/test/foo/../path.html',
-			'example3.com/my/test/path.html'
-		], [
-			'path/./test//test///foo.bar',
-			'example.com/base/path/test/test/foo.bar'
-		], [
-			'https://example2.com//test.html#asdf',
-			'example2.com/test.html'
-		], [
-			'#',
-			''
-		], [
-			'#Anchor',
-			''
-		], [
-			'/',
-			'example3.com/'
-		]
-	]);
-	
-	
-	if (success) {
-		alert('TEST SUCCESS');
-	}
-	
-})(); // */

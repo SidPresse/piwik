@@ -1,5 +1,5 @@
 
-var Piwik_Insight_Client = (function() {
+var Piwik_Overlay_Client = (function() {
 	
 	/** jQuery */
 	var $;
@@ -21,7 +21,7 @@ var Piwik_Insight_Client = (function() {
 		var css = c('link').attr({
 			rel:  'stylesheet',
 			type: 'text/css',
-			href: piwikRoot + 'plugins/Insight/client/insight.css'
+			href: piwikRoot + 'plugins/Overlay/client/client.css'
 		});
 		$('head').append(css);
 	}
@@ -36,7 +36,7 @@ var Piwik_Insight_Client = (function() {
 			callback();
 		}
 		else {
-			Piwik_Insight_Client.loadScript('libs/jquery/jquery.js', function() {
+			Piwik_Overlay_Client.loadScript('libs/jquery/jquery.js', function() {
 				$ = jQuery;
 				jQuery.noConflict();
 				callback();
@@ -49,13 +49,14 @@ var Piwik_Insight_Client = (function() {
 	 * This way, we can display additional metrics on the side of the iframe.
 	 */
 	function notifyPiwikOfLocation() {
-		var iframe = c('iframe', false, {
-			src: 'http://piwik-git.stage/index.php?module=Insight&action=notifyParentIframe#'
-					+ window.location.href
-		})
-			.css({width: 0, height: 0, border: 0});
-		
-		$('body').append(iframe);
+		// check whether the session has been opened in a new tab (instead of an iframe)
+		if (window != window.top) {
+			var iframe = c('iframe', false, {
+				src: piwikRoot + 'index.php?module=Overlay&action=notifyParentIframe#' + window.location.href
+			}).css({width: 0, height: 0, border: 0});
+			
+			$('body').append(iframe);
+		}
 	}
 	
 	/** Create a jqueryfied DOM element */
@@ -97,17 +98,17 @@ var Piwik_Insight_Client = (function() {
 				notifyPiwikOfLocation();
 				loadCss();
 				
-				var finishLoadingInsight = loading('Loading Piwik Insight scripts');
+				var finishLoadingOverlay = loading('Loading Piwik Page Overlay scripts');
 				
 				// translations
-				load('plugins/Insight/client/translations.js', function() {
-					Piwik_Insight_Translations.initialize(function() {
-						finishLoadingInsight();
+				load('plugins/Overlay/client/translations.js', function() {
+					Piwik_Overlay_Translations.initialize(function() {
+						finishLoadingOverlay();
 						
 						// following pages
 						var finishPages = loading('Loading following pages');
-						load('plugins/Insight/client/followingpages.js', function() {
-							Piwik_Insight_FollowingPages.initialize(finishPages);
+						load('plugins/Overlay/client/followingpages.js', function() {
+							Piwik_Overlay_FollowingPages.initialize(finishPages);
 						});
 						
 					});
@@ -138,17 +139,17 @@ var Piwik_Insight_Client = (function() {
 				if (this.readyState == 'loaded' || this.readyState == 'complete') {
 					onLoad();
 				}
-			}
+			};
 			script.onload = onLoad;
 			
 			script.src = piwikRoot+relativePath;
 			head.appendChild(script);
 		},
 		
-		/** Piwik Insight API Request */
+		/** Piwik Overlay API Request */
 		api: function(method, callback, additionalParams) {
-			var url = piwikRoot+'index.php?module=API&method=Insight.'+method
-					+'&idSite='+idSite+'&period='+period+'&date='+date+'&format=JSON';
+			var url = piwikRoot+'index.php?module=API&method=Overlay.'+method
+					+'&idSite='+idSite+'&period='+period+'&date='+date+'&format=JSON&filter_limit=-1';
 					
 			if (additionalParams) {
 				url += '&' + additionalParams;
@@ -195,7 +196,7 @@ var Piwik_Insight_Client = (function() {
 		 * To hide the notification use the returned callback
 		 */
 		loadingNotification: function(message) {
-			return Piwik_Insight_Client.notification(message, 'Loading');
+			return Piwik_Overlay_Client.notification(message, 'Loading');
 		}
 		
 	};

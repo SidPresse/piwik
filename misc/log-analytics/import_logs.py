@@ -216,7 +216,12 @@ class Configuration(object):
         option_parser.add_option(
             '--show-progress', dest='show_progress',
             action='store_true', default=os.isatty(sys.stdout.fileno()),
-            help="Print a progress report every second"
+            help="Print a progress report X seconds (default: 1, use --show-progress-delay to override)"
+        )
+        option_parser.add_option(
+            '--show-progress-delay', dest='show_progress_delay',
+            type='int', default=1,
+            help="Change the default progress delay"
         )
         option_parser.add_option(
             '--add-sites-new-hosts', dest='add_sites_new_hosts',
@@ -683,10 +688,10 @@ Performance summary
                 stats.count_lines_parsed.value,
                 current_total,
                 current_total / time_elapsed if time_elapsed != 0 else 0,
-                current_total - latest_total_recorded
+                (current_total - latest_total_recorded) / config.options.show_progress_delay,
             )
             latest_total_recorded = current_total
-            time.sleep(1)
+            time.sleep(config.options.show_progress_delay)
 
     def start_monitor(self):
         t = threading.Thread(target=self._monitor)
@@ -722,7 +727,7 @@ class Piwik(object):
             data = urllib.urlencode(args)
         elif not isinstance(data, basestring) and headers['Content-type'] == 'application/json':
             data = json.dumps(data)
-        
+
         request = urllib2.Request(url + path, data, headers)
         response = urllib2.urlopen(request)
         result = response.read()
@@ -955,20 +960,20 @@ class Recorder(object):
     recorders = []
 
     def __init__(self):
-        self.queue = Queue.Queue(maxsize=10000)
-        
+        self.queue = Queue.Queue(maxsize=2)
+
         # if bulk tracking disabled, make sure we can store hits outside of the Queue
         if not config.options.use_bulk_tracking:
             self.unrecorded_hits = []
 
-    @staticmethod
-    def launch(recorder_count):
+    @classmethod
+    def launch(cls, recorder_count):
         """
         Launch a bunch of Recorder objects in a separate thread.
         """
         for i in xrange(recorder_count):
             recorder = Recorder()
-            Recorder.recorders.append(recorder)
+            cls.recorders.append(recorder)
             
             run = recorder._run_bulk if config.options.use_bulk_tracking else recorder._run_single
             t = threading.Thread(target=run)
@@ -977,26 +982,26 @@ class Recorder(object):
             t.start()
             logging.debug('Launched recorder')
 
-    @staticmethod
-    def add_hits(all_hits):
+    @classmethod
+    def add_hits(cls, all_hits):
         """
         Add a set of hits to the recorders queue.
         """
         # Organize hits so that one client IP will always use the same queue.
         # We have to do this so visits from the same IP will be added in the right order.
-        hits_by_client = [[] for r in Recorder.recorders]
+        hits_by_client = [[] for r in cls.recorders]
         for hit in all_hits:
-            hits_by_client[abs(hash(hit.ip)) % len(Recorder.recorders)].append(hit)
+            hits_by_client[abs(hash(hit.ip)) % len(cls.recorders)].append(hit)
         
-        for i, recorder in enumerate(Recorder.recorders):
+        for i, recorder in enumerate(cls.recorders):
             recorder.queue.put(hits_by_client[i])
 
-    @staticmethod
-    def wait_empty():
+    @classmethod
+    def wait_empty(cls):
         """
         Wait until all recorders have an empty queue.
         """
-        for recorder in Recorder.recorders:
+        for recorder in cls.recorders:
             recorder._wait_empty()
 
     def _run_bulk(self):
@@ -1287,6 +1292,12 @@ class Parser(object):
             # The format was explicitely specified.
             format = config.format
         else:
+            # If the file is empty, don't bother.
+            data = file.read(100)
+            if len(data.strip()) == 0:
+                return
+            file.seek(0)
+
             format = self.detect_format(file)
             if format is None:
                 return fatal_error(
@@ -1353,7 +1364,7 @@ class Parser(object):
                 hit.host = config.options.log_hostname
             else:
                 try:
-                    hit.host = match.group('host')
+                    hit.host = match.group('host').lower().strip('.')
                 except IndexError:
                     # Some formats have no host.
                     pass

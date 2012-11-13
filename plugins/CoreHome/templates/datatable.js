@@ -690,6 +690,9 @@ dataTable.prototype =
 				if(typeof date != 'undefined') {
 					param_date = date; 
 				}
+                if( typeof self.param.dateUsedInGraph != 'undefined') {
+                    param_date = self.param.dateUsedInGraph;
+                }
 				var period = self.param.period;
 				
 				// RSS does not work for period=range
@@ -702,7 +705,7 @@ dataTable.prototype =
 						+'&format='+format
 						+'&idSite='+self.param.idSite
 						+'&period='+period
-						+'&date='+param_date
+						+'&date='+ param_date
 						+ ( typeof self.param.filter_pattern != "undefined" ? '&filter_pattern=' + self.param.filter_pattern : '')
 						+ ( typeof self.param.filter_pattern_recursive != "undefined" ? '&filter_pattern_recursive=' + self.param.filter_pattern_recursive : '');
 				
@@ -1335,6 +1338,21 @@ dataTable.prototype =
 					actionsDom.hide();
 				}
 			});
+			
+			if (typeof self.param.open_links_in_overlay != 'undefined' && self.param.open_links_in_overlay)
+			{
+				var link = td.find('a');
+				link.click(function()
+				{
+					var rowUrl = $(this).attr('href');
+					var newUrl = 'module=Overlay&action=index&overlayUrl=' + encodeURIComponent(rowUrl).replace(/%/g, '$');
+					
+					$('ul.nav').trigger('piwikSwitchPage');
+					broadcast.propagateAjax(newUrl);
+					
+					return false;
+				});
+			}
 		});
 	},
 	

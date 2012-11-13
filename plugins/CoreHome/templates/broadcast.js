@@ -45,7 +45,12 @@ var broadcast = {
 	/**
 	 * Force reload once
 	 */
-	foceReload: false,
+	forceReload: false,
+
+	/**
+	 * Ignore the hash location change once
+	 */
+	ignoreHashChange: false,
 
     /**
      * Initializes broadcast object
@@ -76,6 +81,18 @@ var broadcast = {
      */
     pageload: function( hash )
     {
+		if (broadcast.ignoreHashChange == hash) {
+			// ignoreHashChange is set in propagateAjax() when the parameter disableHistory
+			// is used. we don't trigger the callbacks for the hash change in this case but
+			// we need to reset the current urls to make sure that when the back button is
+			// used, the callbacks are triggered.
+			broadcast.ignoreHashChange = false;
+			broadcast.currentHashUrl = false;
+			broadcast.currentPopoverParameter = false;
+			return;
+		}
+		broadcast.ignoreHashChange = false;
+		
 		broadcast.init();
 
         // Unbind any previously attached resize handlers
@@ -153,9 +170,10 @@ var broadcast = {
      * NOTE: this method will only make ajax call and replacing main content.
      *
      * @param {string} ajaxUrl  querystring with parameters to be updated
+	 * @param {boolean} disableHistory  the hash change won't be available in the browser history
      * @return {void}
      */
-    propagateAjax: function (ajaxUrl)
+    propagateAjax: function (ajaxUrl, disableHistory)
     {
         broadcast.init();
 
@@ -165,6 +183,9 @@ var broadcast = {
         // available in global scope
         var currentHashStr = broadcast.getHash();
 
+		// remove overlayUrl: the parameter should never be there unless it is set in the ajaxUrl parameter
+		currentHashStr = broadcast.updateParamValue('overlayUrl=', currentHashStr);
+		
         ajaxUrl = ajaxUrl.replace(/^\?|&#/,'');
 		
         var params_vals = ajaxUrl.split("&");
@@ -186,9 +207,22 @@ var broadcast = {
         {
             currentHashStr = broadcast.updateParamValue('idDashboard=', currentHashStr);
         }
-        // Let history know about this new Hash and load it.
-		broadcast.forceReload = true;
-        $.history.load(currentHashStr);
+		
+		if (disableHistory)
+		{
+			// make sure the change doesn't trigger the location change callbacks
+			broadcast.ignoreHashChange = currentHashStr;
+			var newLocation = window.location.href.split('#')[0] + '#' + currentHashStr;
+			// window.location.replace changes the current url without pushing it on the
+			// browser history stack.
+			window.location.replace(newLocation);
+		}
+		else
+		{
+			// Let history know about this new Hash and load it.
+			broadcast.forceReload = true;
+			$.history.load(currentHashStr);
+		}
     },
 
     /**
@@ -286,6 +320,8 @@ var broadcast = {
         }
         if( valFromUrl != '') {
             // replacing current param=value to newParamValue;
+			valFromUrl = valFromUrl.replace(/\$/g, '\\$');
+			valFromUrl = valFromUrl.replace(/\./g, '\\.');
             var regToBeReplace = new RegExp(paramName + '=' + valFromUrl, 'ig');
             if(newParamValue == '') {
                 // if new value is empty remove leading &, aswell
@@ -523,7 +559,7 @@ var broadcast = {
             }
             var value = url.substring(startStr + param.length +1,endStr);
             // sanitize values
-            value = value.replace(/[^_%\-\<\>!@=,;0-9a-zA-Z]/gi, '');
+            value = value.replace(/[^_%\-\<\>!@\$\.=,;0-9a-zA-Z]/gi, '');
 
             return value;
         } else {
